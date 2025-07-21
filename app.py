@@ -1,110 +1,82 @@
 import streamlit as st
-import json
-from pathlib import Path
+from pytube import YouTube
+import os
+import uuid
 
-st.set_page_config(page_title="Vibes - Music Player", layout="centered")
+# Page config and custom CSS for effective UI
+st.set_page_config(page_title="🎵 Vibes Music Player", layout="wide")
 
-# ----------- UI Styling -----------
-st.markdown(
-    """
+st.markdown("""
     <style>
-    .main {
-        background: linear-gradient(to right, #1e3c72, #2a5298);
-        color: white;
-    }
-    .block-container {
-        padding-top: 2rem;
-    }
-    .title {
-        font-size: 3rem;
-        font-weight: bold;
-        color: #fddb3a;
-        text-align: center;
-    }
-    .subtitle {
-        font-size: 1.3rem;
-        color: white;
-        text-align: center;
-        margin-bottom: 30px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# ----------- Title Section -----------
-st.markdown('<div class="title">🎵 Vibes</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Play your favorite tracks from local files or online</div>', unsafe_allow_html=True)
-
-# ----------- Theme Switch -----------
-if "theme" not in st.session_state:
-    st.session_state.theme = "Dark"
-
-theme = st.radio("Select Theme", ["Dark", "Light"], index=0 if st.session_state.theme == "Dark" else 1)
-st.session_state.theme = theme
-
-if theme == "Light":
-    st.markdown("""
-        <style>
         .main {
-            background: linear-gradient(to right, #ffffff, #d3d3d3);
-            color: black;
+            background: linear-gradient(135deg, #1CB5E0, #000851);
+            color: white;
         }
-        .title { color: #1e3c72; }
-        .subtitle { color: #000; }
-        </style>
-    """, unsafe_allow_html=True)
+        .stButton > button {
+            background-color: #FF4B2B;
+            color: white;
+            border-radius: 10px;
+            padding: 0.5rem 1rem;
+        }
+        .stTextInput > div > input {
+            background-color: #f0f2f6;
+            color: #111;
+            border-radius: 10px;
+            padding: 0.5rem;
+        }
+        .stFileUploader {
+            background-color: #f0f2f6;
+            border-radius: 10px;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-# ----------- Load Favorites -----------
-fav_file = Path("favorites.json")
-if fav_file.exists():
-    favorites = json.loads(fav_file.read_text())
-else:
-    favorites = []
+# Title and header
+st.title("🎵 Vibes Music Player")
+st.markdown("#### Listen to local MP3s or stream audio from YouTube!")
 
-# ----------- Tabs -----------
-tab1, tab2, tab3 = st.tabs(["📁 Local MP3", "🌐 YouTube Stream", "⭐ Favorites"])
+DOWNLOAD_DIR = "downloads"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# ----------- Local MP3 -----------
-with tab1:
-    st.subheader("Upload and Play MP3 Files")
-    uploaded_file = st.file_uploader("Choose an MP3 file", type=["mp3"])
-    if uploaded_file:
-        st.audio(uploaded_file, format="audio/mp3")
-        st.success("Playing: " + uploaded_file.name)
-        if st.button("Add to Favorites"):
-            favorites.append({"type": "local", "name": uploaded_file.name})
-            fav_file.write_text(json.dumps(favorites))
-            st.success("Added to favorites!")
+# Sidebar for navigation
+st.sidebar.title("🔊 Select Source")
+option = st.sidebar.radio("Choose an option", ["📁 Upload MP3", "▶️ YouTube Link"])
 
-# ----------- YouTube Stream -----------
-with tab2:
-    st.subheader("Stream from YouTube (Audio Only)")
-    youtube_link = st.text_input("Paste direct YouTube audio stream URL")
-    if youtube_link:
-        st.audio(youtube_link)
-        if st.button("Add YouTube Link to Favorites"):
-            favorites.append({"type": "youtube", "url": youtube_link})
-            fav_file.write_text(json.dumps(favorites))
-            st.success("Added to favorites!")
+# Function to play audio from file
+def play_audio(file_path, label="Audio Playback"):
+    with open(file_path, 'rb') as f:
+        audio_bytes = f.read()
+        st.markdown(f"**{label}**")
+        st.audio(audio_bytes, format="audio/mp3")
 
-# ----------- Favorites -----------
-with tab3:
-    st.subheader("Your Favorite Tracks")
-    if favorites:
-        for i, fav in enumerate(favorites):
-            if fav["type"] == "local":
-                st.markdown(f"**🎧 {fav['name']}** (local file - reupload needed)")
-            elif fav["type"] == "youtube":
-                st.markdown(f"**🔗 YouTube Stream:** {fav['url']}")
-                st.audio(fav["url"])
-            if st.button(f"❌ Remove Favorite {i+1}"):
-                del favorites[i]
-                fav_file.write_text(json.dumps(favorites))
-                st.experimental_rerun()
-    else:
-        st.info("No favorites added yet.")
+# Handle Uploads
+if option == "📁 Upload MP3":
+    uploaded_file = st.file_uploader("Upload an MP3 file", type=["mp3"])
+    if uploaded_file is not None:
+        file_path = os.path.join(DOWNLOAD_DIR, uploaded_file.name)
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        st.success(f"Uploaded: {uploaded_file.name}")
+        play_audio(file_path, label=uploaded_file.name)
 
-# ----------- Footer -----------
-st.markdown("---")
-st.markdown('<p style="text-align:center; color: #ccc;">Created with ❤️ by Aman</p>', unsafe_allow_html=True)
+# Handle YouTube Download and Playback
+elif option == "▶️ YouTube Link":
+    yt_url = st.text_input("Enter YouTube URL:")
+    if yt_url:
+        try:
+            yt = YouTube(yt_url)
+            stream = yt.streams.filter(only_audio=True, file_extension='mp4').first()
+            if stream:
+                filename = f"{uuid.uuid4()}.mp4"
+                download_path = os.path.join(DOWNLOAD_DIR, filename)
+
+                with st.spinner("Downloading audio..."):
+                    stream.download(output_path=DOWNLOAD_DIR, filename=filename)
+
+                st.success(f"Audio downloaded: {yt.title}")
+                play_audio(download_path, label=yt.title)
+
+            else:
+                st.warning("No suitable audio stream found.")
+        except Exception as e:
+            st.error(f"Error: {e}")
