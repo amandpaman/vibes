@@ -1,131 +1,126 @@
+
 import streamlit as st
 import os
-import base64
-import time
-import tempfile
-import shutil
-import eyed3
-import json
-import pandas as pd
-import requests
-from mutagen.mp3 import MP3
+from io import BytesIO
 from pydub import AudioSegment
-from streamlit_extras.stylable_container import stylable_container
-from streamlit_extras.app_logo import add_logo
+from mutagen.mp3 import MP3
+import base64
 from yt_dlp import YoutubeDL
+import tempfile
 
-# Ensure ffmpeg is in the PATH
-os.environ["PATH"] += os.pathsep + "/usr/bin"
+st.set_page_config(page_title="🎵 Vibes Music Player", layout="wide")
 
-# Streamlit Page Configuration
-st.set_page_config(page_title="Vibes Music Player", layout="wide")
-
-# Custom Styling
 st.markdown("""
     <style>
-        .stApp {
-            background: linear-gradient(120deg, #0f2027, #203a43, #2c5364);
-            color: white;
-        }
-        .stTextInput > div > div > input,
-        .stFileUploader, .stButton > button, .stSelectbox > div {
-            border-radius: 10px;
-            padding: 10px;
-            background-color: #ffffff10;
-            color: white;
-        }
-        .stTextInput > div > div > input::placeholder {
-            color: #cccccc;
-        }
+    body {
+        background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+        color: white;
+    }
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Title
-st.title("🎵 Vibes Music Player")
+st.title("🎶 Vibes Music Player")
 
-# Upload MP3
-uploaded_files = st.file_uploader("Upload MP3 Files", accept_multiple_files=True, type=['mp3'])
+option = st.radio("Select Mode", ["Upload Local MP3", "Download from YouTube"])
 
-playlist = []
+# Download directory
+DOWNLOAD_DIR = "downloads"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-if uploaded_files:
-    for uploaded_file in uploaded_files:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
-            tmp.write(uploaded_file.read())
-            file_path = tmp.name
-            audio = MP3(file_path)
-            duration = audio.info.length
-            playlist.append({
-                'title': uploaded_file.name,
-                'file_path': file_path,
-                'duration': duration
-            })
-
-    # Select Track
-    current_track = st.selectbox("Select a track", options=[track['title'] for track in playlist])
-
-    selected_track = next((track for track in playlist if track['title'] == current_track), None)
-    if selected_track:
-        audio_bytes = open(selected_track['file_path'], 'rb').read()
-        st.audio(audio_bytes, format='audio/mp3')
-        st.write(f"Duration: {int(selected_track['duration'] // 60)}:{int(selected_track['duration'] % 60):02d} minutes")
-
-# YouTube Downloader
-st.subheader("📥 Download from YouTube")
-youtube_url = st.text_input("Enter YouTube URL")
-
-if st.button("Download and Play") and youtube_url:
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'ffmpeg_location': '/usr/bin'
-    }
-
-    try:
+def download_youtube_audio(url):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmpfile:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': tmpfile.name,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'quiet': True,
+        }
         with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(youtube_url, download=True)
-            filename = f"downloads/{info['title']}.mp3"
+            ydl.download([url])
+        return tmpfile.name
 
-            st.success(f"Downloaded: {info['title']}")
-            audio_bytes = open(filename, 'rb').read()
-            st.audio(audio_bytes, format='audio/mp3')
-
-    except Exception as e:
-        st.error(f"Error downloading from YouTube: {str(e)}")
-
-# Save/Load Playlist
-st.subheader("💾 Save / Load Playlist")
-playlist_name = st.text_input("Playlist Name")
-
-if st.button("Save Playlist") and playlist and playlist_name:
-    with open(f"{playlist_name}.json", 'w') as f:
-        json.dump(playlist, f)
-    st.success("Playlist saved!")
-
-if st.button("Load Playlist") and playlist_name:
+def show_metadata(file):
     try:
-        with open(f"{playlist_name}.json", 'r') as f:
-            loaded = json.load(f)
-            playlist = loaded
-        st.success("Playlist loaded!")
-    except FileNotFoundError:
-        st.error("Playlist file not found.")
+        audio = MP3(file)
+        duration = audio.info.length
+        minutes = int(duration // 60)
+        seconds = int(duration % 60)
+        st.markdown(f"**Duration:** {minutes}:{seconds:02d}")
+        try:
+            title = audio.get('TIT2', 'Unknown Title')
+            st.markdown(f"**Title:** {title}")
+        except:
+            pass
+    except Exception as e:
+        st.error("Metadata not found")
 
-# Playback Progress Simulation
-if playlist:
-    st.subheader("🔊 Real-Time Playback Progress")
-    progress_placeholder = st.empty()
-    play_button = st.button("Simulate Progress")
-    if play_button:
-        for i in range(100):
-            time.sleep(0.1)
-            progress_placeholder.progress(i + 1)
+def play_audio(file_path):
+    audio = AudioSegment.from_file(file_path, format="mp3")
+    buffer = BytesIO()
+    audio.export(buffer, format="mp3")
+    audio_bytes = buffer.getvalue()
+    st.audio(audio_bytes, format="audio/mp3")
 
-# Footer
-st.markdown("---")
-st.markdown("Made with ❤️ using Streamlit")
+    st.progress(0)
+    duration = MP3(file_path).info.length
+    with st.empty():
+        for i in range(1, 101):
+            st.progress(i)
+            st.sleep(duration / 100)
+
+def save_playlist(playlist):
+    with open("playlist.txt", "w") as f:
+        for item in playlist:
+            f.write(item + "\n")
+
+def load_playlist():
+    if os.path.exists("playlist.txt"):
+        with open("playlist.txt", "r") as f:
+            return [line.strip() for line in f]
+    return []
+
+playlist = load_playlist()
+
+if option == "Upload Local MP3":
+    file = st.file_uploader("Upload an MP3 file", type="mp3")
+    if file is not None:
+        temp_file_path = os.path.join(DOWNLOAD_DIR, file.name)
+        with open(temp_file_path, "wb") as f:
+            f.write(file.read())
+        show_metadata(temp_file_path)
+        play_audio(temp_file_path)
+        if st.button("Add to Playlist"):
+            playlist.append(temp_file_path)
+            save_playlist(playlist)
+            st.success("Added to playlist ✅")
+
+elif option == "Download from YouTube":
+    url = st.text_input("Enter YouTube URL")
+    if st.button("Download & Play") and url:
+        with st.spinner("Downloading..."):
+            path = download_youtube_audio(url)
+        if path:
+            show_metadata(path)
+            play_audio(path)
+            if st.button("Add to Playlist"):
+                playlist.append(path)
+                save_playlist(playlist)
+                st.success("Added to playlist ✅")
+
+st.markdown("## 🎧 Your Playlist")
+for i, item in enumerate(playlist):
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.markdown(f"**{os.path.basename(item)}**")
+    with col2:
+        if st.button("▶️ Play", key=f"play_{i}"):
+            show_metadata(item)
+            play_audio(item)
