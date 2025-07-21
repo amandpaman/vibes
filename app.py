@@ -1,4 +1,4 @@
-pip install pygame mutagen pillow streamlit
+#pip install pygame mutagen pillow streamlit
 
 import streamlit as st
 import os
