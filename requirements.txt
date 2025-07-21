@@ -1,8 +1,12 @@
-streamlit
-pygame
-mutagen
-pillow
-numpy
+
 matplotlib
 requests
+streamlit
+mutagen
+pydub
 yt-dlp
+eyed3
+streamlit-extras
+pygame
+pillow
+numpy
