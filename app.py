@@ -1,3 +1,5 @@
+pip install pygame mutagen pillow streamlit
+
 import streamlit as st
 import os
 import pygame
