@@ -17,22 +17,33 @@ from yt_dlp import YoutubeDL
 # Ensure ffmpeg is in the PATH
 os.environ["PATH"] += os.pathsep + "/usr/bin"
 
+# Streamlit Page Configuration
 st.set_page_config(page_title="Vibes Music Player", layout="wide")
+
+# Custom Styling
 st.markdown("""
     <style>
         .stApp {
             background: linear-gradient(120deg, #0f2027, #203a43, #2c5364);
             color: white;
         }
-        .stTextInput, .stFileUploader, .stButton, .stSelectbox {
+        .stTextInput > div > div > input,
+        .stFileUploader, .stButton > button, .stSelectbox > div {
             border-radius: 10px;
             padding: 10px;
+            background-color: #ffffff10;
+            color: white;
+        }
+        .stTextInput > div > div > input::placeholder {
+            color: #cccccc;
         }
     </style>
 """, unsafe_allow_html=True)
 
+# Title
 st.title("🎵 Vibes Music Player")
 
+# Upload MP3
 uploaded_files = st.file_uploader("Upload MP3 Files", accept_multiple_files=True, type=['mp3'])
 
 playlist = []
@@ -50,6 +61,7 @@ if uploaded_files:
                 'duration': duration
             })
 
+    # Select Track
     current_track = st.selectbox("Select a track", options=[track['title'] for track in playlist])
 
     selected_track = next((track for track in playlist if track['title'] == current_track), None)
@@ -104,7 +116,7 @@ if st.button("Load Playlist") and playlist_name:
     except FileNotFoundError:
         st.error("Playlist file not found.")
 
-# Waveform simulation (basic progress bar)
+# Playback Progress Simulation
 if playlist:
     st.subheader("🔊 Real-Time Playback Progress")
     progress_placeholder = st.empty()
