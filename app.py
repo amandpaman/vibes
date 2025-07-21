@@ -3,6 +3,10 @@ from mutagen.mp3 import MP3
 from mutagen.id3 import ID3
 from PIL import Image
 import os
+
+# Explicitly set ffmpeg location for yt_dlp
+os.environ["PATH"] += os.pathsep + "/usr/bin"
+
 import io
 import base64
 import tempfile
