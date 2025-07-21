@@ -1,0 +1,7 @@
+streamlit
+pygame
+mutagen
+pillow
+numpy
+matplotlib
+requests
